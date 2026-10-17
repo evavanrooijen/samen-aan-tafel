@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Profielen kunnen alleen door de eigenaar gelezen worden.
+    // Stel householdId handmatig in via Firebase Console; clients mogen dit veld niet aanpassen.
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if false;
+    }
+
+    function isHouseholdMember(householdId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.householdId == householdId;
+    }
+
+    match /households/{householdId}/{document=**} {
+      allow read, write: if isHouseholdMember(householdId);
+    }
+  }
+}
