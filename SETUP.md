@@ -71,3 +71,4 @@ Open daarna `http://localhost:8000`.
 - De eerste versie heeft geen wachtwoordreset, uitnodigingsflow, voorraadhoeveelheden als getal, automatische ingrediënten-naar-boodschappenlogica of offline-modus.
 - De huidige weekplanner gebruikt de maandag van de huidige week als week-ID; hij toont geen weeknavigatie.
 - Deze starter gebruikt de Firebase JavaScript SDK via de officiële CDN-modules. Een bundler is niet nodig.
+- Even een overbodige comment, want de deploy lukte nog niet
