@@ -1,104 +1,160 @@
 <!doctype html>
 <html lang="nl">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f7f2">
   <title>Samen aan tafel</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 </head>
+
 <body>
   <main class="shell">
     <header class="topbar">
-      <a class="brand" href="#"><span class="brand-mark">s.</span><span>Samen aan tafel<small>ons kleine huishouden</small></span></a>
-      <div id="user-area" class="user-area hidden"><span id="user-email"></span><button id="logout-btn" class="button button-quiet">Uitloggen</button></div>
+      <a class="brand" href="#"><span class="brand-mark">s.</span><span>Samen aan tafel<small>ons kleine
+            huishouden</small></span></a>
+      <div id="user-area" class="user-area hidden"><span id="user-email"></span><button id="logout-btn"
+          class="button button-quiet">Uitloggen</button></div>
     </header>
 
     <section id="auth-view" class="auth-layout">
       <div class="hero">
         <p class="eyebrow">JULLIE KEUKEN, SAMEN GEREGELD</p>
         <h1>Minder bedenken.<br><em>Meer genieten.</em></h1>
-        <p class="intro">Houd jullie voorraad bij, bewaar favoriete recepten en maak samen een haalbaar weekplan.</p>
-        <div class="hero-points"><span>✓ Gedeelde voorraad</span><span>✓ Recepten op één plek</span><span>✓ Een rustig weekoverzicht</span></div>
+        <p class="intro">Zie wat jullie in huis hebben en plan makkelijk wat er op tafel komt. Recepten bewaren kan ook,
+          maar hoeft niet.</p>
+        <div class="hero-points"><span>✓ Gedeelde voorraad</span><span>✓ Recepten op één plek</span><span>✓ Een rustig
+            weekoverzicht</span></div>
       </div>
       <div class="panel auth-panel">
         <p class="eyebrow">WELKOM THUIS</p>
         <h2 id="auth-title">Fijn dat je er bent.</h2>
         <p id="auth-description" class="muted">Log in om jullie keuken te openen.</p>
         <form id="auth-form">
-          <label>E-mailadres<input id="email" type="email" autocomplete="email" required placeholder="jij@voorbeeld.nl"></label>
-          <label>Wachtwoord<input id="password" type="password" minlength="6" autocomplete="current-password" required placeholder="Minimaal 6 tekens"></label>
+          <label>E-mailadres<input id="email" type="email" autocomplete="email" required
+              placeholder="jij@voorbeeld.nl"></label>
+          <label>Wachtwoord<input id="password" type="password" minlength="6" autocomplete="current-password" required
+              placeholder="Minimaal 6 tekens"></label>
           <button id="auth-submit" class="button button-primary full" type="submit">Inloggen</button>
         </form>
-        <p class="switch-auth"><span id="switch-copy">Nog geen account?</span> <button id="switch-auth" class="text-button" type="button">Account maken</button></p>
+        <p class="switch-auth"><span id="switch-copy">Nog geen account?</span> <button id="switch-auth"
+            class="text-button" type="button">Account maken</button></p>
         <p id="auth-message" class="message" role="status"></p>
       </div>
     </section>
 
     <section id="app-view" class="hidden">
-      <div class="welcome-row"><div><p class="eyebrow">JULLIE PLEK</p><h1>Wat eten we deze week?</h1><p class="muted">Een beetje overzicht maakt koken een stuk relaxter.</p></div><div class="date-pill" id="today-label"></div></div>
+      <div class="welcome-row">
+        <div>
+          <p class="eyebrow">JULLIE PLEK</p>
+          <h1>Wat eten we deze week?</h1>
+          <p class="muted">Een beetje overzicht maakt koken een stuk relaxter.</p>
+        </div>
+        <div class="welcome-actions"><button class="recipe-library-button" type="button" data-tab="recipes"
+            aria-label="Open receptenbibliotheek" title="Receptenbibliotheek">
+            <svg class="recipe-book-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 7 C9 4.5 5.5 4.5 3 5.5 V18
+           C6.5 17 9.5 18 12 20
+           C14.5 18 17.5 17 21 18 V5.5
+           C18.5 4.5 15 4.5 12 7 Z" />
+              <path d="M12 7 V20" />
+            </svg>
+          </button>
+          <div class="date-pill" id="today-label"></div>
+        </div>
+      </div>
       <nav class="tabs" aria-label="Hoofdnavigatie">
-        <button class="tab active" data-tab="inventory">Voorraad <span id="inventory-count" class="count">0</span></button>
-        <button class="tab" data-tab="recipes">Recepten <span id="recipe-count" class="count">0</span></button>
+        <button class="tab active" data-tab="inventory">Voorraad <span id="inventory-count"
+            class="count">0</span></button>
         <button class="tab" data-tab="week">Weekplan</button>
         <button class="tab" data-tab="shopping">Boodschappen <span id="shopping-count" class="count">0</span></button>
       </nav>
 
       <section id="tab-inventory" class="tab-panel">
-        <div class="section-heading"><div><h2>In de kast en koelkast</h2><p class="muted">Wat hebben jullie al in huis?</p></div></div>
-        
-<form id="inventory-form" class="inline-form">
-  <label class="grow">
-    Product
-    <input id="item-name" required maxlength="80" placeholder="Bijv. volkoren pasta">
-  </label>
+        <div class="section-heading">
+          <div>
+            <h2>In de kast en koelkast</h2>
+            <p class="muted">Wat hebben jullie al in huis?</p>
+          </div>
+        </div>
 
-  <label>
-    Hoeveelheid
-    <input id="item-quantity" type="number" required min="0" step="any" placeholder="500">
-  </label>
+        <form id="inventory-form" class="inline-form">
+          <label class="grow">
+            Product
+            <input id="item-name" required maxlength="80" placeholder="Bijv. volkoren pasta">
+          </label>
 
-  <label>
-    Eenheid
-    <select id="item-unit" required>
-      <option value="g">gram (g)</option>
-      <option value="kg">kilogram (kg)</option>
-      <option value="ml">milliliter (ml)</option>
-      <option value="l">liter (l)</option>
-      <option value="st">stuk(s)</option>
-    </select>
-  </label>
+          <label>
+            Hoeveelheid
+            <input id="item-quantity" type="number" required min="0" step="any" placeholder="500">
+          </label>
 
-  <button class="button button-primary" type="submit">+ Toevoegen</button>
-</form>
+          <label>
+            Eenheid
+            <select id="item-unit" required>
+              <option value="g">gram (g)</option>
+              <option value="kg">kilogram (kg)</option>
+              <option value="ml">milliliter (ml)</option>
+              <option value="l">liter (l)</option>
+              <option value="st">stuk(s)</option>
+            </select>
+          </label>
+
+          <button class="button button-primary" type="submit">+ Toevoegen</button>
+        </form>
         <div id="inventory-list" class="item-list"></div>
-        <p id="inventory-empty" class="empty-state">Je voorraad is nog leeg. Voeg hierboven jullie eerste product toe.</p>
+        <p id="inventory-empty" class="empty-state">Je voorraad is nog leeg. Voeg hierboven jullie eerste product toe.
+        </p>
       </section>
 
       <section id="tab-recipes" class="tab-panel hidden">
-        <div class="section-heading"><div><h2>Favoriete recepten</h2><p class="muted">Bewaar de gerechten waar jullie graag op terugvallen.</p></div></div>
+        <div class="section-heading">
+          <div>
+            <h2>Favoriete recepten</h2>
+            <p class="muted">Bewaar de gerechten waar jullie graag op terugvallen.</p>
+          </div>
+        </div>
         <form id="recipe-form" class="panel form-panel">
           <h3>Nieuw recept</h3>
-          <label>Naam van het gerecht<input id="recipe-name" required maxlength="100" placeholder="Bijv. romige tomatenpasta"></label>
+          <label>Naam van het gerecht<input id="recipe-name" required maxlength="100"
+              placeholder="Bijv. romige tomatenpasta"></label>
           <div class="form-grid">
-            <label>Ingrediënten <span class="hint">(één per regel)</span><textarea id="recipe-ingredients" required rows="4" placeholder="200 g pasta&#10;1 blik tomaten&#10;1 ui"></textarea></label>
-            <label>Bereiding<textarea id="recipe-method" rows="4" placeholder="Snijd de ui, bak glazig..."></textarea></label>
+            <label>Ingrediënten <span class="hint">(één per regel)</span><textarea id="recipe-ingredients" required
+                rows="4" placeholder="200 g pasta&#10;1 blik tomaten&#10;1 ui"></textarea></label>
+            <label>Bereiding<textarea id="recipe-method" rows="4"
+                placeholder="Snijd de ui, bak glazig..."></textarea></label>
           </div>
-          <div class="form-footer"><label>Porties<input id="recipe-servings" type="number" min="1" max="30" value="2" required></label><button class="button button-primary" type="submit">Recept bewaren</button></div>
+          <div class="form-footer"><label>Porties<input id="recipe-servings" type="number" min="1" max="30" value="2"
+                required></label><button class="button button-primary" type="submit">Recept bewaren</button></div>
         </form>
         <div id="recipes-list" class="recipe-grid"></div>
         <p id="recipes-empty" class="empty-state">Nog geen recepten. Voeg jullie eerste favoriet toe.</p>
       </section>
 
       <section id="tab-week" class="tab-panel hidden">
-        <div class="section-heading"><div><h2>Jullie weekplan</h2><p class="muted">Kies een gerecht voor elke dag. Je keuze wordt direct gedeeld.</p></div><button id="clear-week" class="button button-quiet">Week leegmaken</button></div>
+        <div class="section-heading">
+          <div>
+            <h2>Jullie weekplan</h2>
+            <p class="muted">Geef elke maaltijd een naam en noteer eventueel de ingrediënten. Een recept aanmaken hoeft
+              niet.</p>
+          </div><button id="clear-week" class="button button-quiet">Week leegmaken</button>
+        </div>
         <div id="week-list" class="week-list"></div>
       </section>
 
       <section id="tab-shopping" class="tab-panel hidden">
-        <div class="section-heading"><div><h2>Boodschappenlijst</h2><p class="muted">Vink af wat in het mandje ligt.</p></div></div>
+        <div class="section-heading">
+          <div>
+            <h2>Boodschappenlijst</h2>
+            <p class="muted">Vink af wat in het mandje ligt.</p>
+          </div>
+        </div>
         <form id="shopping-form" class="inline-form">
-          <label class="grow">Wat hebben we nodig?<input id="shopping-name" required maxlength="100" placeholder="Bijv. havermelk"></label>
+          <label class="grow">Wat hebben we nodig?<input id="shopping-name" required maxlength="100"
+              placeholder="Bijv. havermelk"></label>
           <button class="button button-primary" type="submit">+ Toevoegen</button>
         </form>
         <div id="shopping-list" class="item-list"></div>
@@ -110,4 +166,5 @@
   <div id="toast" class="toast" role="status"></div>
   <script type="module" src="app.js"></script>
 </body>
+
 </html>

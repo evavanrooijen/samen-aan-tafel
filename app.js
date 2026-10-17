@@ -193,14 +193,30 @@ function renderShopping() {
     </div>`).join("");
   $("shopping-empty").classList.toggle("hidden", shopping.length > 0);
 }
+function getMealForDay(day) {
+  const saved = week[day];
+  if (!saved) return { name: "", ingredients: [] };
+  // Oudere weekplannen bewaren een recept-ID als tekst; blijf die ook ondersteunen.
+  if (typeof saved === "string") {
+    const recipe = recipes.find(item => item.id === saved);
+    return recipe ? { name: recipe.name || "", ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [], recipeId: recipe.id } : { name: "", ingredients: [] };
+  }
+  return { name: saved.name || "", ingredients: Array.isArray(saved.ingredients) ? saved.ingredients : [] };
+}
 function renderWeek() {
   $("week-list").innerHTML = days.map((day, index) => {
     const date = new Date(monday); date.setDate(monday.getDate()+index);
-    const selected = week[day] || "";
-    return `<div class="day-row"><div><div class="day-name">${day}</div><div class="day-date">${date.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})}</div></div>
-      <select data-day="${day}" aria-label="Recept voor ${day}"><option value="">Nog niets gepland</option>${recipes.map(r => `<option value="${r.id}" ${selected===r.id?"selected":""}>${escapeHtml(r.name)}</option>`).join("")}</select></div>`;
+    const meal = getMealForDay(day);
+    return `<article class="day-card" data-meal-day="${day}">
+      <div class="day-heading"><div><div class="day-name">${day}</div><div class="day-date">${date.toLocaleDateString("nl-NL",{day:"numeric",month:"short"})}</div></div>
+        <button class="small-button" data-action="save-meal" data-day="${day}">Bewaar dag</button></div>
+      <label>Wat eten we? <input class="meal-name" maxlength="100" value="${escapeHtml(meal.name)}" placeholder="Bijv. wraps met bonen"></label>
+      <label>Ingrediënten <span class="hint">(optioneel, één per regel)</span><textarea class="meal-ingredients" rows="2" placeholder="Bijv. 1 blik bonen&#10;1 paprika&#10;4 wraps">${escapeHtml(meal.ingredients.join("\n"))}</textarea></label>
+      <div class="meal-actions"><button class="small-button" data-action="add-missing" data-day="${day}">Zet ontbrekende ingrediënten op boodschappenlijst</button></div>
+    </article>`;
   }).join("");
 }
+
 $("inventory-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!householdId) return;
@@ -251,6 +267,45 @@ document.body.addEventListener("click", async event => {
   if (!button || !householdId) return;
   const {action,id} = button.dataset;
   try {
+    if (action === "save-meal") {
+      const day = button.dataset.day;
+      const card = button.closest("[data-meal-day]");
+      const name = card.querySelector(".meal-name").value.trim();
+      const ingredients = card.querySelector(".meal-ingredients").value.split("\n").map(x => x.trim()).filter(Boolean);
+      const next = { ...week };
+      if (!name && ingredients.length === 0) delete next[day];
+      else next[day] = { name, ingredients };
+      await setDoc(doc(db, "households", householdId, "weekPlans", weekKey), { days: next, updatedAt: serverTimestamp() }, { merge: true });
+      showToast("Dag bewaard.");
+      return;
+    }
+    if (action === "add-missing") {
+      const day = button.dataset.day;
+      const card = button.closest("[data-meal-day]");
+      const mealName = card.querySelector(".meal-name").value.trim();
+      const ingredients = card.querySelector(".meal-ingredients").value.split("\n").map(x => x.trim()).filter(Boolean);
+      if (!mealName) { showToast("Geef de maaltijd eerst een naam."); return; }
+      if (!ingredients.length) { showToast("Vul eerst de ingrediënten in."); return; }
+
+      // Sla de huidige invoer eerst op, zodat ook wijzigingen die nog niet
+      // met "Bewaar dag" zijn bevestigd behouden blijven.
+      const next = { ...week, [day]: { name: mealName, ingredients } };
+      await setDoc(doc(db, "households", householdId, "weekPlans", weekKey), { days: next, updatedAt: serverTimestamp() }, { merge: true });
+      week = next;
+
+      const normalize = value => String(value).toLocaleLowerCase("nl-NL").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const missing = ingredients.filter(ingredient => !inventory.some(item => {
+        const inventoryName = normalize(item.name);
+        const ingredientName = normalize(ingredient).replace(/^([0-9]+([.,][0-9]+)?\s*)?(g|kg|ml|l|st|stuk[s]?|blik|blikken)\s+/i, "");
+        return inventoryName === ingredientName || ingredientName.includes(inventoryName) || inventoryName.includes(ingredientName);
+      }));
+      if (!missing.length) { showToast("Maaltijd opgeslagen. Volgens jullie voorraad is alles al in huis!"); return; }
+      for (const ingredient of missing) {
+        await addDoc(householdCollection("shopping"), { name: `${ingredient} (${mealName})`, checked: false, createdAt: serverTimestamp() });
+      }
+      showToast(`Maaltijd opgeslagen; ${missing.length} ingrediënt(en) toegevoegd aan boodschappen.`);
+      return;
+    }
     if (action === "delete-inventory") await deleteDoc(doc(db,"households",householdId,"inventory",id));
     if (action === "delete-recipe") await deleteDoc(doc(db,"households",householdId,"recipes",id));
     if (action === "delete-shopping") await deleteDoc(doc(db,"households",householdId,"shopping",id));
@@ -308,15 +363,8 @@ document.body.addEventListener("change", async event => {
     try { await updateDoc(doc(db,"households",householdId,"shopping",event.target.dataset.id),{checked:event.target.checked}); }
     catch(error) { showToast(friendlyError(error)); }
   }
-  if (event.target.matches("select[data-day]") && householdId) {
-    const next = {...week, [event.target.dataset.day]:event.target.value};
-    try {
-      await setDoc(doc(db,"households",householdId,"weekPlans",weekKey),{days:next,updatedAt:serverTimestamp()},{merge:true});
-      showToast("Weekplan bijgewerkt.");
-    } catch(error) { showToast(friendlyError(error)); }
-  }
 });
-document.querySelectorAll(".tab").forEach(button => button.addEventListener("click", () => {
+document.querySelectorAll("[data-tab]").forEach(button => button.addEventListener("click", () => {
   document.querySelectorAll(".tab").forEach(tab=>tab.classList.toggle("active",tab===button));
   document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.add("hidden"));
   $(`tab-${button.dataset.tab}`).classList.remove("hidden");
