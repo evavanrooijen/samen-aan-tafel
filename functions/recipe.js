@@ -70,4 +70,36 @@ Geselecteerde voorraad:
 ${inventory}`;
 }
 
-module.exports = { createRecipePrompt, parseRecipe, validateIngredients };
+function mapGeminiError(error) {
+  const status = Number(error?.status);
+  if (status === 402) {
+    return {
+      code: "failed-precondition",
+      message: "Gemini weigert deze aanvraag wegens de factureringsinstellingen. Controleer of de API-key toegang heeft tot de gratis Gemini Flash-Lite-tier."
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      code: "failed-precondition",
+      message: "De Gemini API-key is ongeldig of heeft geen toegang tot dit model."
+    };
+  }
+  if (status === 429) {
+    return {
+      code: "resource-exhausted",
+      message: "De gratis Gemini-gebruikslimiet is bereikt. Probeer het later opnieuw."
+    };
+  }
+  if (status >= 500) {
+    return {
+      code: "unavailable",
+      message: "De Gemini-service is tijdelijk niet bereikbaar."
+    };
+  }
+  return {
+    code: "internal",
+    message: "Gemini kon geen recept maken. Probeer het opnieuw."
+  };
+}
+
+module.exports = { createRecipePrompt, mapGeminiError, parseRecipe, validateIngredients };

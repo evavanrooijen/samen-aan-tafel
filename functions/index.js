@@ -4,7 +4,7 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { logger } = require("firebase-functions");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
-const { createRecipePrompt, parseRecipe, validateIngredients } = require("./recipe");
+const { createRecipePrompt, mapGeminiError, parseRecipe, validateIngredients } = require("./recipe");
 
 initializeApp();
 
@@ -49,29 +49,28 @@ exports.generateRecipe = onCall({
   let response;
   try {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
-    response = await ai.interactions.create({
-      model: "gemini-3.8-flash",
-      input: createRecipePrompt(ingredients),
-      response_format: {
-        type: "text",
-        mime_type: "application/json",
-        schema: recipeSchema
-      },
-      generation_config: {
-        max_output_tokens: 1000,
+    response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: createRecipePrompt(ingredients),
+      config: {
+        responseMimeType: "application/json",
+        responseJsonSchema: recipeSchema,
+        maxOutputTokens: 1000,
         temperature: 0.5
       }
     });
   } catch (error) {
+    const mappedError = mapGeminiError(error);
     logger.error("Gemini recipe request failed", {
       name: error?.name || "UnknownError",
-      status: error?.status || "unknown"
+      status: error?.status || "unknown",
+      code: mappedError.code
     });
-    throw new HttpsError("unavailable", "De AI is tijdelijk niet bereikbaar. Probeer het opnieuw.");
+    throw new HttpsError(mappedError.code, mappedError.message);
   }
 
   try {
-    const recipe = parseRecipe(response.output_text);
+    const recipe = parseRecipe(response.text);
     return { recipe };
   } catch (error) {
     logger.error("Gemini returned an invalid recipe response", { message: error.message });

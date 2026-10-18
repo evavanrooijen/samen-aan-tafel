@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createRecipePrompt, parseRecipe, validateIngredients } = require("./recipe");
+const { createRecipePrompt, mapGeminiError, parseRecipe, validateIngredients } = require("./recipe");
 
 test("validates and trims selected inventory items", () => {
   assert.deepEqual(
@@ -41,4 +41,12 @@ test("parses a valid recipe response", () => {
 test("rejects malformed recipe responses", () => {
   assert.throws(() => parseRecipe("not JSON"), /geen geldig recept/);
   assert.throws(() => parseRecipe(JSON.stringify({ name: "X", ingredients: [], method: "Y", servings: 2 })), /ongeldig formaat/);
+});
+
+test("maps Gemini billing and API errors to actionable callable errors", () => {
+  assert.equal(mapGeminiError({ status: 402 }).code, "failed-precondition");
+  assert.equal(mapGeminiError({ status: 401 }).code, "failed-precondition");
+  assert.equal(mapGeminiError({ status: 429 }).code, "resource-exhausted");
+  assert.equal(mapGeminiError({ status: 503 }).code, "unavailable");
+  assert.equal(mapGeminiError({ status: 400 }).code, "internal");
 });
