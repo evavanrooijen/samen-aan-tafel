@@ -44,7 +44,10 @@ test("rejects malformed recipe responses", () => {
 });
 
 test("maps Gemini billing and API errors to actionable callable errors", () => {
-  assert.equal(mapGeminiError({ status: 402 }).code, "failed-precondition");
+  const billingError = mapGeminiError({ status: 402 });
+  assert.equal(billingError.code, "failed-precondition");
+  assert.match(billingError.message, /prepaytegoeden.*op/i);
+  assert.match(billingError.message, /Free Tier/);
   assert.equal(mapGeminiError({ status: 401 }).code, "failed-precondition");
   assert.equal(mapGeminiError({ status: 404 }).code, "failed-precondition");
   assert.equal(mapGeminiError({ status: 429 }).code, "resource-exhausted");

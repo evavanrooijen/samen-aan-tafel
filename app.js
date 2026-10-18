@@ -31,6 +31,7 @@ let shopping = [];
 let hideCheckedShopping = false;
 let todayData = { name: "", ingredients: [] };
 let isEditingTodayMeal = false;
+let isInventoryRecipeDraft = false;
 let lastActiveTab = "inventory";
 let unsubscribeFns = [];
 let unsubscribeDayPlan = null;
@@ -42,8 +43,6 @@ const todayKey = `${dateNow.getFullYear()}-${String(dateNow.getMonth()+1).padSta
 let selectedPlanDateKey = todayKey;
 let calendarMonth = new Date(dateNow.getFullYear(), dateNow.getMonth(), 1);
 const inventoryCategories = ["Groente & fruit", "Zuivel & eieren", "Vlees & vis", "Brood & granen", "Blik & pot", "Kruiden & sauzen", "Dranken", "Overig"];
-let pendingRecipeMethod = null;
-let currentRecipeSuggestion = null;
 
 function showToast(message) {
   $("toast").textContent = message;
@@ -143,6 +142,7 @@ function listenToSelectedDayPlan() {
   }
   todayData = { name: "", ingredients: [] };
   isEditingTodayMeal = false;
+  isInventoryRecipeDraft = false;
   renderToday();
   renderTodayRecipeSelect();
   if (!householdId) return;
@@ -209,9 +209,9 @@ onAuthStateChanged(auth, async user => {
   if (!user) {
     householdId = null;
     isEditingTodayMeal = false;
+    isInventoryRecipeDraft = false;
     selectedPlanDateKey = todayKey;
     selectedInventoryIds.clear();
-    pendingRecipeMethod = null;
     updateRecipeAssistantButton();
     updatePlanDateDisplay();
     $("auth-view").classList.remove("hidden");
@@ -303,22 +303,6 @@ function updateRecipeAssistantButton() {
   $("selected-inventory-count").textContent = String(selectedInventoryIds.size);
 }
 
-function renderRecipeSuggestion() {
-  const suggestion = currentRecipeSuggestion;
-  $("recipe-assistant-suggestions").innerHTML = suggestion ? `
-    <article class="assistant-recipe-card">
-      <h3>${escapeHtml(suggestion.name)}</h3>
-      <p>${suggestion.servings} porties</p>
-      <h4>Ingrediënten</h4>
-      <ul>${suggestion.ingredients.map(ingredient => `<li>${escapeHtml(ingredient)}</li>`).join("")}</ul>
-      <details>
-        <summary>Bekijk bereiding</summary>
-        <p>${escapeHtml(suggestion.method).replace(/\n/g, "<br>")}</p>
-      </details>
-      <button class="button button-primary" type="button" data-action="choose-inventory-recipe">Plan voor ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}</button>
-    </article>` : "";
-}
-
 function recipeAssistantErrorMessage(error) {
   if (error.code === "functions/unauthenticated") return "Log in om een receptvoorstel te laten maken.";
   if (error.code === "functions/permission-denied") return "Je account is niet gekoppeld aan een huishouden.";
@@ -335,7 +319,6 @@ async function openRecipeAssistant() {
 
   const button = $("open-recipe-assistant");
   button.disabled = true;
-  currentRecipeSuggestion = null;
   $("recipe-assistant-selected").textContent = selectedItems.map(item => item.name).join(", ");
   $("recipe-assistant-status").textContent = "Ik bedenk een recept met jullie ingrediënten…";
   $("recipe-assistant-suggestions").innerHTML = "";
@@ -350,9 +333,17 @@ async function openRecipeAssistant() {
         unit: item.unitOfMeasurement
       }))
     });
-    currentRecipeSuggestion = result.data.recipe;
-    $("recipe-assistant-status").textContent = "";
-    renderRecipeSuggestion();
+    const recipe = result.data.recipe;
+    isInventoryRecipeDraft = true;
+    isEditingTodayMeal = true;
+    $("recipe-assistant").classList.add("hidden");
+    document.querySelector(".tab[data-tab='today']")?.click();
+    renderToday();
+    $("today-meal-name").value = recipe.name;
+    $("today-meal-ingredients").value = recipe.ingredients.join("\n");
+    $("today-meal-method").value = recipe.method;
+    $("today-meal-name").focus();
+    showToast(`Recept klaargezet voor ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}. Pas het aan en sla het op.`);
   } catch (error) {
     $("recipe-assistant-status").textContent = recipeAssistantErrorMessage(error);
   } finally {
@@ -428,12 +419,15 @@ function findPlannedRecipe() {
 }
 
 function renderToday() {
-  if ($("today-meal-name") && document.activeElement !== $("today-meal-name")) {
+  if ($("today-meal-name") && !isInventoryRecipeDraft && document.activeElement !== $("today-meal-name")) {
     $("today-meal-name").value = todayData.name || "";
   }
-  if ($("today-meal-ingredients") && document.activeElement !== $("today-meal-ingredients")) {
+  if ($("today-meal-ingredients") && !isInventoryRecipeDraft && document.activeElement !== $("today-meal-ingredients")) {
     const ingredientsArr = Array.isArray(todayData.ingredients) ? todayData.ingredients : [];
     $("today-meal-ingredients").value = ingredientsArr.join("\n");
+  }
+  if ($("today-meal-method") && !isInventoryRecipeDraft && document.activeElement !== $("today-meal-method")) {
+    $("today-meal-method").value = todayData.method || "";
   }
 
   const plannedMealName = typeof todayData.name === "string" ? todayData.name.trim() : "";
@@ -446,9 +440,11 @@ function renderToday() {
     summary.classList.toggle("hidden", !showSummary);
     editor.classList.toggle("hidden", hasSavedMeal && !isEditingTodayMeal);
     if (topActions) topActions.classList.toggle("hidden", hasSavedMeal && !isEditingTodayMeal);
-    $("today-plan-save").textContent = isEditingTodayMeal
-      ? "Wijzigingen opslaan & boodschappen bijwerken"
-      : "Plan in & zet ontbrekend op boodschappen";
+    $("today-plan-save").textContent = isInventoryRecipeDraft
+      ? "Opslaan & voeg missende boodschappen toe aan boodschappenlijst"
+      : isEditingTodayMeal
+        ? "Wijzigingen opslaan & boodschappen bijwerken"
+        : "Opslaan & ontbrekende boodschappen toevoegen";
     $("cancel-today-edit").classList.toggle("hidden", !isEditingTodayMeal);
 
     if (hasSavedMeal) {
@@ -648,6 +644,7 @@ document.body.addEventListener("change", async event => {
       $("today-meal-name").value = selectedRecipe.name || "";
       const ingredients = Array.isArray(selectedRecipe.ingredients) ? selectedRecipe.ingredients : [];
       $("today-meal-ingredients").value = ingredients.join("\n");
+      $("today-meal-method").value = selectedRecipe.method || "";
       showToast(`Recept "${selectedRecipe.name}" ingeladen!`);
     }
   }
@@ -707,6 +704,7 @@ document.body.addEventListener("click", async event => {
 
     if (action === "cancel-edit-today-meal") {
       isEditingTodayMeal = false;
+      isInventoryRecipeDraft = false;
       renderToday();
       renderTodayRecipeSelect();
       return;
@@ -746,16 +744,23 @@ document.body.addEventListener("click", async event => {
 
     if (action === "save-and-shopping") {
       const isEditing = isEditingTodayMeal;
+      const wasInventoryRecipeDraft = isInventoryRecipeDraft;
       const name = $("today-meal-name").value.trim();
       const ingredients = $("today-meal-ingredients").value.split("\n").map(x => x.trim()).filter(Boolean);
+      const method = $("today-meal-method").value.trim();
       if (!name) { showToast("Geef de maaltijd eerst een naam."); return; }
       if (!ingredients.length) { showToast("Vul eerst de ingrediënten in."); return; }
 
-      const method = pendingRecipeMethod;
+      if (
+        isInventoryRecipeDraft &&
+        todayData.name &&
+        !confirm(`Dit vervangt "${todayData.name}" op ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}. Wil je doorgaan?`)
+      ) return;
+
       await setDoc(doc(db, "households", householdId, "dayPlans", selectedPlanDateKey), {
         name,
         ingredients,
-        ...(method ? { method } : {}),
+        method,
         updatedAt: serverTimestamp()
       });
 
@@ -780,15 +785,28 @@ document.body.addEventListener("click", async event => {
           createdAt: serverTimestamp()
         });
       }
-      todayData = { ...todayData, name, ingredients, method: method || "" };
-      pendingRecipeMethod = null;
+      todayData = { ...todayData, name, ingredients, method };
       isEditingTodayMeal = false;
+      isInventoryRecipeDraft = false;
+      if (wasInventoryRecipeDraft) {
+        selectedInventoryIds.clear();
+        updateRecipeAssistantButton();
+        renderInventory();
+      }
       renderToday();
       renderTodayRecipeSelect();
       if (!missing.length) {
+        if (wasInventoryRecipeDraft) {
+          showToast("Recept ingepland. Volgens de voorraad is alles al in huis.");
+          return;
+        }
         showToast(isEditing
           ? "Maaltijd bijgewerkt. Er zijn geen nieuwe boodschappen nodig."
           : "Menu opgeslagen! Volgens de voorraad is alles al in huis.");
+        return;
+      }
+      if (wasInventoryRecipeDraft) {
+        showToast(`Recept ingepland! ${missing.length} ontbrekende ingrediënt(en) toegevoegd aan de boodschappenlijst.`);
         return;
       }
       showToast(isEditing
@@ -797,29 +815,11 @@ document.body.addEventListener("click", async event => {
       return;
     }
 
-    if (action === "choose-inventory-recipe") {
-      const suggestion = currentRecipeSuggestion;
-      if (!suggestion) return;
-      if (todayData.name && !confirm(`Dit vervangt "${todayData.name}" op ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}. Wil je doorgaan?`)) return;
-
-      $("today-meal-name").value = suggestion.name;
-      $("today-meal-ingredients").value = suggestion.ingredients.join("\n");
-      pendingRecipeMethod = suggestion.method;
-      closeRecipeAssistant();
-      document.querySelector(".tab[data-tab='today']")?.click();
-      document.querySelector("[data-action='save-and-shopping']")?.click();
-      selectedInventoryIds.clear();
-      updateRecipeAssistantButton();
-      renderInventory();
-      document.querySelector(".tab[data-tab='today']")?.focus();
-      return;
-    }
-
     if (action === "save-as-recipe") {
       const name = $("today-meal-name").value.trim();
       const ingredients = $("today-meal-ingredients").value.split("\n").map(x => x.trim()).filter(Boolean);
       if (!name) { showToast("Geef het gerecht eerst een naam."); return; }
-      await addDoc(householdCollection("recipes"), { name, ingredients, method: "", servings: 2, createdAt: serverTimestamp() });
+      await addDoc(householdCollection("recipes"), { name, ingredients, method: $("today-meal-method").value.trim(), servings: 2, createdAt: serverTimestamp() });
       showToast("⭐ Opgeslagen als nieuw recept in jullie bibliotheek!");
       return;
     }

@@ -75,7 +75,7 @@ function mapGeminiError(error) {
   if (status === 402) {
     return {
       code: "failed-precondition",
-      message: "Gemini weigert deze aanvraag wegens de factureringsinstellingen. Controleer of de API-key toegang heeft tot de gratis Gemini Flash-Lite-tier."
+      message: "De Gemini-prepaytegoeden van dit project zijn op. Voor gratis gebruik moet GEMINI_API_KEY horen bij een Google AI Studio-project dat op Free Tier staat. Controleer de projecttier in AI Studio; voeg alleen tegoed toe als je betaald gebruik wilt."
     };
   }
   if (status === 401 || status === 403) {

@@ -1566,6 +1566,11 @@ textarea {
   flex-wrap: wrap;
 }
 
+#today-plan-save {
+  white-space: normal;
+  line-height: 1.4;
+}
+
 /* Ronde plus-knop rechtsboven */
 .icon-button-primary {
   width: 42px;
