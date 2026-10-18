@@ -64,6 +64,7 @@ exports.generateRecipe = onCall({
     logger.error("Gemini recipe request failed", {
       name: error?.name || "UnknownError",
       status: error?.status || "unknown",
+      message: typeof error?.message === "string" ? error.message.slice(0, 500) : "No provider message",
       code: mappedError.code
     });
     throw new HttpsError(mappedError.code, mappedError.message);

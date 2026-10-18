@@ -84,6 +84,12 @@ function mapGeminiError(error) {
       message: "De Gemini API-key is ongeldig of heeft geen toegang tot dit model."
     };
   }
+  if (status === 404) {
+    return {
+      code: "failed-precondition",
+      message: "Gemini kan het gratis Flash-Lite-model niet vinden voor deze API-key. Controleer of de key bij het juiste Google AI Studio-project hoort en toegang heeft tot Gemini 2.5 Flash-Lite."
+    };
+  }
   if (status === 429) {
     return {
       code: "resource-exhausted",

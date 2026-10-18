@@ -322,7 +322,7 @@ function renderRecipeSuggestion() {
 function recipeAssistantErrorMessage(error) {
   if (error.code === "functions/unauthenticated") return "Log in om een receptvoorstel te laten maken.";
   if (error.code === "functions/permission-denied") return "Je account is niet gekoppeld aan een huishouden.";
-  if (error.code === "functions/failed-precondition") return "De Gemini API-key heeft geen toegang tot de gratis AI-configuratie. Controleer de API-key en het Gemini-project.";
+  if (error.code === "functions/failed-precondition") return error.message || "De Gemini API-key heeft geen toegang tot de gratis AI-configuratie. Controleer de API-key en het Gemini-project.";
   if (error.code === "functions/resource-exhausted") return "De gratis Gemini-gebruikslimiet is bereikt. Probeer het later opnieuw.";
   if (error.code === "functions/not-found") return "De receptfunctie is nog niet uitgerold.";
   if (error.code === "functions/unavailable" || error.code === "functions/deadline-exceeded") return "De AI is tijdelijk niet bereikbaar. Probeer het opnieuw.";
