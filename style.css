@@ -438,6 +438,20 @@ textarea {
   font-size: 11px
 }
 
+.inventory-action-button {
+  display: grid;
+  flex: 0 0 34px;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 8px
+}
+
+.inventory-action-button svg {
+  width: 17px;
+  height: 17px
+}
+
 .delete-button {
   background: #fff1eb;
   color: #a15f43
@@ -474,6 +488,12 @@ textarea {
   display: flex;
   align-items: end;
   justify-content: space-between
+}
+
+.recipe-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .form-footer label {
@@ -528,8 +548,27 @@ textarea {
 
 .recipe-actions {
   display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 14px
+}
+
+.recipe-edit-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--green);
+}
+
+.recipe-edit-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .week-list {
@@ -588,6 +627,11 @@ textarea {
   margin: 0 0 14px;
 }
 
+.shopping-delete-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .shopping-filter {
   display: flex;
   flex-direction: row;
@@ -616,12 +660,30 @@ textarea {
   color: #a15f43;
 }
 
+.shopping-delete-all {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff1eb;
+  color: #a15f43;
+}
+
 .shopping-delete-checked svg {
   width: 18px;
   height: 18px;
 }
 
-.shopping-delete-checked:disabled {
+.shopping-delete-all svg {
+  width: 18px;
+  height: 18px;
+}
+
+.shopping-delete-checked:disabled,
+.shopping-delete-all:disabled {
   opacity: .4;
   cursor: not-allowed;
 }
@@ -937,6 +999,12 @@ textarea {
   margin-bottom: 5px
 }
 
+.welcome-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .recipe-library-button {
   box-sizing: border-box;
   display: inline-flex;
@@ -951,13 +1019,59 @@ textarea {
   color: var(--green);
   border-radius: 12px;
   line-height: 1;
+  margin: 0;
+  position: relative;
   transition: background .18s ease, border-color .18s ease;
   overflow: hidden;
+}
+
+.plan-date-control {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 8px;
+  height: 44px;
+  padding: 3px 10px 3px 3px;
+  position: relative;
+}
+
+.plan-date-button {
+  align-items: center;
+  background: #edf1eb;
+  border: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  color: var(--green);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 36px;
+  height: 36px;
+  justify-content: center;
+  padding: 7px;
+  width: 36px;
+}
+
+.plan-date-button svg {
+  height: 20px;
+  width: 20px;
+}
+
+.plan-date-display {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .recipe-library-button:hover {
   background: #f4f7f2;
   border-color: #cbd8ca
+}
+
+.plan-date-button:hover {
+  background: #e2ebe1;
 }
 
 .recipe-book-icon {
@@ -966,6 +1080,117 @@ textarea {
   height: 20px;
   flex-shrink: 0;
   stroke: currentColor;
+}
+
+.plan-calendar {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: min(310px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 36px #26352e24;
+}
+
+.plan-calendar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.plan-calendar-heading h2 {
+  margin: 0;
+  color: var(--green-dark);
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.plan-calendar-nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: #f3f5f0;
+  color: var(--green);
+  font-size: 23px;
+  line-height: 1;
+}
+
+.plan-calendar-nav:hover:not(:disabled) {
+  background: var(--sage);
+}
+
+.plan-calendar-nav:disabled {
+  cursor: default;
+  opacity: .35;
+}
+
+.plan-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.plan-calendar-weekdays {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.plan-calendar-weekdays span {
+  padding: 5px 0;
+}
+
+.plan-calendar-day,
+.plan-calendar-empty {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 34px;
+}
+
+.plan-calendar-day {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #35443b;
+  font-size: 13px;
+}
+
+.plan-calendar-day:hover:not(:disabled):not([aria-pressed="true"]) {
+  background: #f0f4ef;
+}
+
+.plan-calendar-day.is-today {
+  box-shadow: inset 0 0 0 1px #a9bba9;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.plan-calendar-day[aria-pressed="true"] {
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+}
+
+.plan-calendar-day:disabled {
+  cursor: default;
+  color: #c4c9c2;
+}
+
+.plan-date-control:focus-within {
+  border-color: #779681;
+  box-shadow: 0 0 0 3px #e6eee6;
 }
 
 .recipe-library-button .count {
@@ -1128,5 +1353,10 @@ textarea {
     width: 42px;
     height: 42px;
     padding: 7px;
+  }
+
+  .plan-date-button {
+    width: 36px;
+    height: 36px;
   }
 }

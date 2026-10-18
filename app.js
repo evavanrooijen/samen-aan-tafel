@@ -22,16 +22,21 @@ let householdId = null;
 let isRegisterMode = false;
 let inventory = [];
 let recipes = [];
+let editingRecipeId = null;
 let shopping = [];
 let hideCheckedShopping = false;
 let todayData = { name: "", ingredients: [] };
 let isEditingTodayMeal = false;
+let lastActiveTab = "inventory";
 let unsubscribeFns = [];
+let unsubscribeDayPlan = null;
 let toastTimer;
 
 // Vandaag datumsleutel (YYYY-MM-DD)
 const dateNow = new Date();
 const todayKey = `${dateNow.getFullYear()}-${String(dateNow.getMonth()+1).padStart(2,"0")}-${String(dateNow.getDate()).padStart(2,"0")}`;
+let selectedPlanDateKey = todayKey;
+let calendarMonth = new Date(dateNow.getFullYear(), dateNow.getMonth(), 1);
 
 function showToast(message) {
   $("toast").textContent = message;
@@ -55,7 +60,95 @@ function householdCollection(name) {
   if (!householdId) throw new Error("Er is nog geen huishouden gekoppeld.");
   return collection(db, "households", householdId, name);
 }
-function stopListeners() { unsubscribeFns.forEach(fn => fn()); unsubscribeFns = []; }
+function stopListeners() {
+  unsubscribeFns.forEach(fn => fn());
+  unsubscribeFns = [];
+  if (unsubscribeDayPlan) {
+    unsubscribeDayPlan();
+    unsubscribeDayPlan = null;
+  }
+}
+
+function dateFromKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKeyFromDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function updatePlanDateDisplay() {
+  const selectedDate = dateFromKey(selectedPlanDateKey);
+  $("plan-date-display").textContent = selectedDate.toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+  $("today-name-display").textContent = selectedPlanDateKey === todayKey ? "Vandaag" : "Vooruit plannen";
+  $("today-date-display").textContent = selectedDate.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function renderPlanCalendar() {
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const currentMonth = new Date(dateFromKey(todayKey).getFullYear(), dateFromKey(todayKey).getMonth(), 1);
+  const previousMonthDisabled = calendarMonth <= currentMonth;
+  const weekdays = ["ma", "di", "wo", "do", "vr", "za", "zo"];
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const day = index - firstWeekday + 1;
+    if (day < 1 || day > daysInMonth) return '<span class="plan-calendar-empty" aria-hidden="true"></span>';
+
+    const dateKey = dateKeyFromDate(new Date(year, month, day));
+    const disabled = dateKey < todayKey;
+    const selected = dateKey === selectedPlanDateKey;
+    const today = dateKey === todayKey;
+    const label = dateFromKey(dateKey).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return `<button class="plan-calendar-day${today ? " is-today" : ""}" type="button" data-date="${dateKey}" aria-label="${label}" aria-pressed="${selected}"${disabled ? " disabled" : ""}>${day}</button>`;
+  }).join("");
+
+  $("plan-calendar").innerHTML = `
+    <div class="plan-calendar-heading">
+      <button class="plan-calendar-nav" type="button" data-calendar-action="previous" aria-label="Vorige maand"${previousMonthDisabled ? " disabled" : ""}>‹</button>
+      <h2>${calendarMonth.toLocaleDateString("nl-NL", { month: "long", year: "numeric" })}</h2>
+      <button class="plan-calendar-nav" type="button" data-calendar-action="next" aria-label="Volgende maand">›</button>
+    </div>
+    <div class="plan-calendar-grid plan-calendar-weekdays" aria-hidden="true">${weekdays.map(day => `<span>${day}</span>`).join("")}</div>
+    <div class="plan-calendar-grid">${days}</div>`;
+}
+
+function closePlanCalendar(returnFocus = false) {
+  $("plan-calendar").classList.add("hidden");
+  $("plan-date-button").setAttribute("aria-expanded", "false");
+  if (returnFocus) $("plan-date-button").focus();
+}
+
+function selectPlanDate(dateKey) {
+  selectedPlanDateKey = dateKey;
+  updatePlanDateDisplay();
+  closePlanCalendar(true);
+  listenToSelectedDayPlan();
+  document.querySelector(".tab[data-tab='today']")?.click();
+}
+
+function listenToSelectedDayPlan() {
+  if (unsubscribeDayPlan) {
+    unsubscribeDayPlan();
+    unsubscribeDayPlan = null;
+  }
+  todayData = { name: "", ingredients: [] };
+  isEditingTodayMeal = false;
+  renderToday();
+  renderTodayRecipeSelect();
+  if (!householdId) return;
+
+  const listeningDateKey = selectedPlanDateKey;
+  const dayPlanRef = doc(db, "households", householdId, "dayPlans", listeningDateKey);
+  unsubscribeDayPlan = onSnapshot(dayPlanRef, snap => {
+    if (listeningDateKey !== selectedPlanDateKey) return;
+    todayData = snap.exists() ? (snap.data() || { name: "", ingredients: [] }) : { name: "", ingredients: [] };
+    renderToday();
+    renderTodayRecipeSelect();
+  }, error => showToast(friendlyError(error)));
+}
 
 function subscribeData() {
   stopListeners();
@@ -71,13 +164,7 @@ function subscribeData() {
   listen("recipes", value => recipes = value);
   listen("shopping", value => shopping = value);
 
-  // Vandaag document luisteren
-  const todayRef = doc(db, "households", householdId, "dayPlans", todayKey);
-  unsubscribeFns.push(onSnapshot(todayRef, snap => {
-    todayData = snap.exists() ? (snap.data() || { name: "", ingredients: [] }) : { name: "", ingredients: [] };
-    renderToday();
-    renderTodayRecipeSelect();
-  }, error => showToast(friendlyError(error))));
+  listenToSelectedDayPlan();
 }
 
 function setAuthMode(register) {
@@ -115,6 +202,8 @@ onAuthStateChanged(auth, async user => {
   if (!user) {
     householdId = null;
     isEditingTodayMeal = false;
+    selectedPlanDateKey = todayKey;
+    updatePlanDateDisplay();
     $("auth-view").classList.remove("hidden");
     $("app-view").classList.add("hidden");
     $("user-area").classList.add("hidden");
@@ -126,15 +215,7 @@ onAuthStateChanged(auth, async user => {
   $("user-area").classList.remove("hidden");
   $("user-email").textContent = user.email || "Ingelogd";
   
-  if ($("today-label")) {
-    $("today-label").textContent = dateNow.toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"short"});
-  }
-  if ($("today-name-display")) {
-    $("today-name-display").textContent = "Menu van vandaag";
-  }
-  if ($("today-date-display")) {
-    $("today-date-display").textContent = dateNow.toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  }
+  updatePlanDateDisplay();
 
   try {
     const profileRef = doc(db, "users", user.uid);
@@ -173,11 +254,15 @@ function renderInventory() {
         <div class="item-name">${escapeHtml(item.name)}</div>
       </div>
       <div class="item-amount">
-        <input class="inventory-quantity" type="number" min="0" step="any" value="${escapeHtml(String(item.quantity))}" data-action="update-inventory-quantity" data-id="${item.id}" aria-label="Hoeveelheid voor ${escapeHtml(item.name)}">
+        <input id="inventory-quantity-${item.id}" class="inventory-quantity" type="number" min="0" step="any" value="${escapeHtml(String(item.quantity))}" data-action="update-inventory-quantity" data-id="${item.id}" aria-label="Hoeveelheid voor ${escapeHtml(item.name)}">
         <span>${escapeHtml(item.unitOfMeasurement)}</span>
       </div>
-      <button class="small-button" data-action="edit-inventory" data-id="${item.id}">Wijzig naam</button>
-      <button class="small-button delete-button" data-action="delete-inventory" data-id="${item.id}">Verwijder</button>
+      <button class="small-button inventory-action-button" type="button" data-action="edit-inventory" data-id="${item.id}" aria-label="Wijzig ${escapeHtml(item.name)}" title="Wijzig ${escapeHtml(item.name)}">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 4 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></svg>
+      </button>
+      <button class="small-button delete-button inventory-action-button" type="button" data-action="delete-inventory" data-id="${item.id}" aria-label="Verwijder ${escapeHtml(item.name)}" title="Verwijder ${escapeHtml(item.name)}">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-.9 14H5.9L5 6m4 4v6m6-6v6" /></svg>
+      </button>
     </div>
   `).join("");
   $("inventory-empty").classList.toggle("hidden", inventory.length > 0);
@@ -189,7 +274,12 @@ function renderRecipes() {
     return `<article class="recipe-card"><h3>${escapeHtml(recipe.name)}</h3><p>${Number(recipe.servings)||2} porties</p>
       <h4>Ingrediënten</h4><ul>${ingredients.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
       ${recipe.method ? `<h4>Bereiding</h4><p>${escapeHtml(recipe.method).replace(/\n/g,"<br>")}</p>` : ""}
-      <div class="recipe-actions"><button class="small-button delete-button" data-action="delete-recipe" data-id="${recipe.id}">Verwijder recept</button></div></article>`;
+      <div class="recipe-actions">
+        <button class="recipe-edit-button" type="button" data-action="edit-recipe" data-id="${recipe.id}" aria-label="Wijzig ${escapeHtml(recipe.name)}" title="Recept wijzigen">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 4 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></svg>
+        </button>
+        <button class="small-button delete-button" data-action="delete-recipe" data-id="${recipe.id}">Verwijder recept</button>
+      </div></article>`;
   }).join("");
   $("recipes-empty").classList.toggle("hidden", recipes.length > 0);
 }
@@ -198,7 +288,7 @@ function renderShopping() {
   const visibleShopping = hideCheckedShopping ? shopping.filter(item => !item.checked) : shopping;
   $("shopping-list").innerHTML = visibleShopping.map(item => `
     <div class="item-row ${item.checked ? "checked" : ""}">
-      <input class="shopping-check" type="checkbox" data-action="toggle-shopping" data-id="${item.id}" ${item.checked ? "checked" : ""} aria-label="Vink ${escapeHtml(item.name)} af">
+      <input id="shopping-check-${item.id}" class="shopping-check" type="checkbox" data-action="toggle-shopping" data-id="${item.id}" ${item.checked ? "checked" : ""} aria-label="Vink ${escapeHtml(item.name)} af">
       <div class="item-main">
         <div class="item-name">${escapeHtml(item.name)}</div>
         <div class="item-sub">${item.quantity ? escapeHtml(String(item.quantity)) : ""} ${item.unitOfMeasurement ? escapeHtml(item.unitOfMeasurement) : ""}</div>
@@ -213,6 +303,16 @@ function renderShopping() {
   const checkedCount = shopping.filter(item => item.checked).length;
   $("hide-checked-shopping").closest("label").classList.toggle("hidden", checkedCount === 0);
   $("delete-checked-shopping").disabled = checkedCount === 0;
+  $("delete-all-shopping").disabled = shopping.length === 0;
+}
+
+function resetRecipeForm() {
+  editingRecipeId = null;
+  $("recipe-form").reset();
+  $("recipe-servings").value = "2";
+  $("recipe-form-title").textContent = "Nieuw recept";
+  $("recipe-submit-button").textContent = "Recept bewaren";
+  $("recipe-cancel-button").classList.add("hidden");
 }
 
 function findPlannedRecipe() {
@@ -254,7 +354,7 @@ function renderToday() {
         <h4>Ingrediënten</h4>
         ${ingredients.length ? `<ul>${ingredients.map((item, index) => {
           const parsed = splitIngredientQuantity(item);
-          return `<li><input class="planned-ingredient-quantity" type="number" min="0" step="any" value="${escapeHtml(parsed.quantity)}" data-action="update-meal-ingredient" data-index="${index}" aria-label="Hoeveelheid voor ${escapeHtml(parsed.detail || item)}"><span>${escapeHtml(parsed.detail)}</span></li>`;
+          return `<li><input id="planned-ingredient-quantity-${index}" class="planned-ingredient-quantity" type="number" min="0" step="any" value="${escapeHtml(parsed.quantity)}" data-action="update-meal-ingredient" data-index="${index}" aria-label="Hoeveelheid voor ${escapeHtml(parsed.detail || item)}"><span>${escapeHtml(parsed.detail)}</span></li>`;
         }).join("")}</ul>` : "<p>Geen ingrediënten opgeslagen.</p>"}
         ${method ? `<h4>Bereiding</h4><p>${escapeHtml(method).replace(/\n/g, "<br>")}</p>` : ""}
         <div class="planned-meal-actions">
@@ -270,7 +370,7 @@ function renderToday() {
 
   const opperdepopBtn = document.querySelector("[data-action='deduct-inventory']");
   if (opperdepopBtn) {
-    opperdepopBtn.classList.toggle("hidden", !hasSavedMeal);
+    opperdepopBtn.classList.toggle("hidden", !hasSavedMeal || selectedPlanDateKey !== todayKey);
   }
 }
 
@@ -295,7 +395,7 @@ function renderTodayRecipeSelect() {
 
 function parseIngredientString(str) {
   const clean = str.trim();
-  const match = clean.match(/^([0-9]+([.,][0-9]+)?)\s*(g|kg|ml|l|st|stuk[s]?)?\s+(.*)$/i);
+  const match = clean.match(/^([0-9]+([.,][0-9]+)?)\s*(blik|g|kg|ml|l|st|stuk[s]?)?\s+(.*)$/i);
   if (match) {
     return {
       qty: Number(match[1].replace(",", ".")),
@@ -340,20 +440,26 @@ $("recipe-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!householdId) return;
   const ingredients = $("recipe-ingredients").value.split("\n").map(x=>x.trim()).filter(Boolean);
+  const recipeData = {
+    name: $("recipe-name").value.trim(),
+    ingredients,
+    method: $("recipe-method").value.trim(),
+    servings: Number($("recipe-servings").value) || 2,
+    updatedAt: serverTimestamp()
+  };
   try {
-    const servingsInput = $("recipe-servings");
-    await addDoc(householdCollection("recipes"), { 
-      name: $("recipe-name").value.trim(), 
-      ingredients, 
-      method: $("recipe-method").value.trim(), 
-      servings: servingsInput ? Number(servingsInput.value)||2 : 2, 
-      createdAt: serverTimestamp() 
-    });
-    event.target.reset(); 
-    if (servingsInput) servingsInput.value = "2";
-    showToast("Recept bewaard.");
+    if (editingRecipeId) {
+      await updateDoc(doc(db, "households", householdId, "recipes", editingRecipeId), recipeData);
+      showToast("Recept bijgewerkt.");
+    } else {
+      await addDoc(householdCollection("recipes"), { ...recipeData, createdAt: serverTimestamp() });
+      showToast("Recept bewaard.");
+    }
+    resetRecipeForm();
   } catch(error) { showToast(friendlyError(error)); }
 });
+
+$("recipe-cancel-button").addEventListener("click", resetRecipeForm);
 
 $("shopping-form").addEventListener("submit", async event => {
   event.preventDefault();
@@ -407,7 +513,7 @@ document.body.addEventListener("change", async event => {
     renderToday();
 
     try {
-      await updateDoc(doc(db, "households", householdId, "dayPlans", todayKey), {
+      await updateDoc(doc(db, "households", householdId, "dayPlans", selectedPlanDateKey), {
         ingredients,
         updatedAt: serverTimestamp()
       });
@@ -434,19 +540,19 @@ document.body.addEventListener("change", async event => {
   if (event.target.matches("[data-action='toggle-shopping']") && householdId) {
     const id = event.target.dataset.id;
     const isChecked = event.target.checked;
+    const item = shopping.find(x => x.id === id);
+    if (!item || Boolean(item.checked) === isChecked) return;
+
     try {
       await updateDoc(doc(db, "households", householdId, "shopping", id), { checked: isChecked });
       if (isChecked) {
-        const item = shopping.find(x => x.id === id);
-        if (item) {
-          await addDoc(householdCollection("inventory"), {
-            name: item.name,
-            quantity: Number(item.quantity) || 1,
-            unitOfMeasurement: item.unitOfMeasurement || "st",
-            createdAt: serverTimestamp()
-          });
-          showToast(`"${item.name}" afgetakt en toegevoegd aan voorraad!`);
-        }
+        await addDoc(householdCollection("inventory"), {
+          name: item.name,
+          quantity: Number(item.quantity) || 1,
+          unitOfMeasurement: item.unitOfMeasurement || "st",
+          createdAt: serverTimestamp()
+        });
+        showToast(`"${item.name}" afgetakt en toegevoegd aan voorraad!`);
       }
     } catch(error) { showToast(friendlyError(error)); }
   }
@@ -480,14 +586,38 @@ document.body.addEventListener("click", async event => {
       return;
     }
 
+    if (action === "delete-all-shopping") {
+      const itemCount = shopping.length;
+      if (!itemCount || !confirm(`Weet je zeker dat je alle ${itemCount} boodschappen wilt verwijderen? Dit past de voorraad niet aan.`)) return;
+      await Promise.all(shopping.map(item => deleteDoc(doc(db, "households", householdId, "shopping", item.id))));
+      showToast("De hele boodschappenlijst is verwijderd.");
+      return;
+    }
+
+    if (action === "edit-recipe") {
+      const recipe = recipes.find(item => item.id === id);
+      if (!recipe) return;
+      editingRecipeId = recipe.id;
+      $("recipe-name").value = recipe.name || "";
+      $("recipe-ingredients").value = Array.isArray(recipe.ingredients) ? recipe.ingredients.join("\n") : "";
+      $("recipe-method").value = recipe.method || "";
+      $("recipe-servings").value = Number(recipe.servings) || 2;
+      $("recipe-form-title").textContent = "Recept wijzigen";
+      $("recipe-submit-button").textContent = "Wijzigingen opslaan";
+      $("recipe-cancel-button").classList.remove("hidden");
+      $("recipe-form").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("recipe-name").focus({ preventScroll: true });
+      return;
+    }
+
     if (action === "save-and-shopping") {
-        const isEditing = isEditingTodayMeal;
+      const isEditing = isEditingTodayMeal;
       const name = $("today-meal-name").value.trim();
       const ingredients = $("today-meal-ingredients").value.split("\n").map(x => x.trim()).filter(Boolean);
       if (!name) { showToast("Geef de maaltijd eerst een naam."); return; }
       if (!ingredients.length) { showToast("Vul eerst de ingrediënten in."); return; }
 
-      await setDoc(doc(db, "households", householdId, "dayPlans", todayKey), { name, ingredients, updatedAt: serverTimestamp() });
+      await setDoc(doc(db, "households", householdId, "dayPlans", selectedPlanDateKey), { name, ingredients, updatedAt: serverTimestamp() });
 
       const normalize = v => String(v).toLocaleLowerCase("nl-NL").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const missing = ingredients.filter(ingredient => {
@@ -556,7 +686,10 @@ document.body.addEventListener("click", async event => {
     }
 
     if (action === "delete-inventory") await deleteDoc(doc(db, "households", householdId, "inventory", id));
-    if (action === "delete-recipe") await deleteDoc(doc(db, "households", householdId, "recipes", id));
+    if (action === "delete-recipe") {
+      if (editingRecipeId === id) resetRecipeForm();
+      await deleteDoc(doc(db, "households", householdId, "recipes", id));
+    }
     if (action === "edit-inventory") {
       const item = inventory.find(x => x.id === id);
       if (!item) return;
@@ -565,7 +698,7 @@ document.body.addEventListener("click", async event => {
       const qInput = prompt("Hoeveelheid:", String(item.quantity));
       if (qInput === null) return;
       const quantity = Number(qInput);
-      const unit = prompt("Eenheid (g, kg, ml, l, st):", item.unitOfMeasurement);
+      const unit = prompt("Eenheid (g, kg, ml, l, st, blik):", item.unitOfMeasurement);
       if (unit === null) return;
 
       await updateDoc(doc(db, "households", householdId, "inventory", id), { name: name.trim(), quantity, unitOfMeasurement: unit.trim().toLowerCase() });
@@ -574,9 +707,60 @@ document.body.addEventListener("click", async event => {
   } catch(error) { showToast(friendlyError(error)); }
 });
 
+$("plan-date-button").addEventListener("click", () => {
+  const calendar = $("plan-calendar");
+  if (!calendar.classList.contains("hidden")) {
+    closePlanCalendar();
+    return;
+  }
+  calendarMonth = new Date(dateFromKey(selectedPlanDateKey).getFullYear(), dateFromKey(selectedPlanDateKey).getMonth(), 1);
+  renderPlanCalendar();
+  calendar.classList.remove("hidden");
+  $("plan-date-button").setAttribute("aria-expanded", "true");
+  calendar.querySelector(`[data-date="${selectedPlanDateKey}"]`)?.focus();
+});
+
+$("plan-calendar").addEventListener("click", event => {
+  const actionButton = event.target.closest("[data-calendar-action]");
+  if (actionButton && !actionButton.disabled) {
+    const monthOffset = actionButton.dataset.calendarAction === "previous" ? -1 : 1;
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + monthOffset, 1);
+    renderPlanCalendar();
+    $("plan-calendar").querySelector(`[data-calendar-action="${actionButton.dataset.calendarAction}"]`)?.focus();
+    return;
+  }
+
+  const dateButton = event.target.closest("[data-date]");
+  if (dateButton && !dateButton.disabled) selectPlanDate(dateButton.dataset.date);
+});
+
+document.addEventListener("click", event => {
+  if (!$("plan-date-control").contains(event.target)) closePlanCalendar();
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("plan-calendar").classList.contains("hidden")) closePlanCalendar(true);
+});
+
 document.querySelectorAll("[data-tab]").forEach(button => button.addEventListener("click", () => {
-  document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab === button));
+  const isRecipeLibraryButton = button.classList.contains("recipe-library-button");
+  const targetPanel = $(`tab-${button.dataset.tab}`);
+  if (!targetPanel) return;
+
+  if (isRecipeLibraryButton && !targetPanel.classList.contains("hidden")) {
+    const returnTab = document.querySelector(`.tab[data-tab="${lastActiveTab}"]`) || document.querySelector(".tab[data-tab='inventory']");
+    document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.add("hidden"));
+    if (returnTab) $(`tab-${returnTab.dataset.tab}`).classList.remove("hidden");
+    button.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  if (!isRecipeLibraryButton) {
+    lastActiveTab = button.dataset.tab;
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab === button));
+    document.querySelector(".recipe-library-button")?.setAttribute("aria-expanded", "false");
+  }
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.add("hidden"));
-  const targetId = `tab-${button.dataset.tab}`;
-  if ($(targetId))$(targetId).classList.remove("hidden");
+  targetPanel.classList.remove("hidden");
+  if (isRecipeLibraryButton) button.setAttribute("aria-expanded", "true");
 }));
