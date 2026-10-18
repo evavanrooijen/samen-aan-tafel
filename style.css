@@ -322,6 +322,27 @@ textarea {
   font-size: 10px
 }
 
+/* Styling voor de recepten-dropdown bij Vandaag en eenheid op boodschappenlijst */
+#today-recipe-select,
+#shopping-unit {
+  width: 100%;
+  border: 1px solid #dfe4dc;
+  border-radius: 10px;
+  background: #fcfcfa;
+  padding: 12px 13px;
+  color: #26352e;
+  outline: none;
+  font: inherit;
+  font-size: 13px;
+  transition: border .2s;
+}
+
+#today-recipe-select:focus,
+#shopping-unit:focus {
+  border-color: #779681;
+  box-shadow: 0 0 0 3px #e6eee6;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -391,6 +412,21 @@ textarea {
   font-size: 11px;
   color: var(--muted);
   margin-top: 4px
+}
+
+.item-amount {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.inventory-quantity {
+  flex: 0 0 96px;
+  width: 96px;
+  padding: 8px;
 }
 
 .small-button {
@@ -543,6 +579,51 @@ textarea {
 .checked .item-name {
   text-decoration: line-through;
   color: #98a098
+}
+
+.shopping-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 14px;
+}
+
+.shopping-filter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.shopping-filter input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green);
+}
+
+.shopping-delete-checked {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff1eb;
+  color: #a15f43;
+}
+
+.shopping-delete-checked svg {
+  width: 18px;
+  height: 18px;
+}
+
+.shopping-delete-checked:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 
 .app-footer {
@@ -897,6 +978,144 @@ textarea {
 
 .welcome-actions .date-pill {
   margin-bottom: 0
+}
+
+/* Vandaag Tab & Hoofdkaart */
+.day-card-main {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 5px 20px rgba(38, 53, 46, 0.035);
+}
+
+.today-top-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.planned-meal {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+
+.planned-meal h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.planned-meal h4 {
+  color: #738a78;
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+}
+
+.planned-meal ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.planned-meal li {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.planned-meal input[type="number"] {
+  flex: 0 0 72px;
+  padding: 6px 8px;
+  width: 72px;
+  font-size: 12px;
+}
+
+.planned-meal li,
+.planned-meal p {
+  color: #6c776d;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.planned-meal-actions {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+}
+
+.today-edit-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--green);
+}
+
+.today-edit-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.star-button {
+  background: #fdf6ec !important;
+  color: #b36b22 !important;
+  font-weight: 700;
+}
+
+.today-actions-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Ronde plus-knop rechtsboven */
+.icon-button-primary {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--green);
+  color: white;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(49, 91, 70, 0.25);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.icon-button-primary:hover {
+  background: var(--green-dark);
+  transform: scale(1.05);
+}
+
+@media(max-width: 760px) {
+  .today-actions-row {
+    flex-direction: column;
+  }
+  .today-actions-row button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .planned-meal-actions .button {
+    flex: 1;
+    white-space: normal;
+    width: auto;
+  }
 }
 
 @media(max-width:760px) {
