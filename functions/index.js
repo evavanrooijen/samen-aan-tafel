@@ -50,7 +50,7 @@ exports.generateRecipe = onCall({
   try {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
     response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-3.5-flash-lite",
       contents: createRecipePrompt(ingredients),
       config: {
         responseMimeType: "application/json",
@@ -64,7 +64,7 @@ exports.generateRecipe = onCall({
     logger.error("Gemini recipe request failed", {
       name: error?.name || "UnknownError",
       status: error?.status || "unknown",
-      message: typeof error?.message === "string" ? error.message.slice(0, 500) : "No provider message",
+      providerMessage: typeof error?.message === "string" ? error.message.slice(0, 500) : "No provider message",
       code: mappedError.code
     });
     throw new HttpsError(mappedError.code, mappedError.message);

@@ -85,7 +85,7 @@ De receptenhulp gebruikt een beveiligde Firebase Cloud Function. De Gemini API-k
    ```
 7. Publiceer daarna de bijgewerkte `app.js`, `index.html` en `style.css` naar GitHub Pages.
 
-De functie controleert Firebase Authentication en het huishoudprofiel, beperkt de invoer en vraagt Gemini 2.5 Flash-Lite om één recept in een vast formaat. Het geselecteerde recept gebruikt daarna de bestaande planning en zet ontbrekende ingrediënten op de boodschappenlijst. Gemini 2.5 Flash-Lite heeft een gratis API-tier, onder voorbehoud van beschikbaarheid en gebruikslimieten. Firebase Blaze en Cloud Functions kunnen wel Google Cloud-kosten veroorzaken; stel budgetmeldingen in en controleer gebruik en facturering in Google AI Studio en Google Cloud.
+De functie controleert Firebase Authentication en het huishoudprofiel, beperkt de invoer en vraagt Gemini 3.5 Flash-Lite om één recept in een vast formaat. Het geselecteerde recept gebruikt daarna de bestaande planning en zet ontbrekende ingrediënten op de boodschappenlijst. Beschikbaarheid en gratis gebruik hangen af van de toegangs- en gebruikslimieten in Google AI Studio. Firebase Blaze en Cloud Functions kunnen wel Google Cloud-kosten veroorzaken; stel budgetmeldingen in en controleer gebruik en facturering in Google AI Studio en Google Cloud.
 
 ## Lokaal testen
 Omdat `app.js` ES modules importeert, open `index.html` niet rechtstreeks met `file://`.

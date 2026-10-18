@@ -87,7 +87,7 @@ function mapGeminiError(error) {
   if (status === 404) {
     return {
       code: "failed-precondition",
-      message: "Gemini kan het gratis Flash-Lite-model niet vinden voor deze API-key. Controleer of de key bij het juiste Google AI Studio-project hoort en toegang heeft tot Gemini 2.5 Flash-Lite."
+      message: "Gemini kan het Flash-Lite-model niet vinden voor deze API-key. Controleer of de key bij het juiste Google AI Studio-project hoort en of Gemini 3.5 Flash-Lite voor dit project beschikbaar is."
     };
   }
   if (status === 429) {
