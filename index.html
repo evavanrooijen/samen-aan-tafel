@@ -162,6 +162,20 @@
             </select>
           </label>
 
+          <label>
+            Categorie
+            <select id="item-category" required>
+              <option value="Groente & fruit">Groente & fruit</option>
+              <option value="Zuivel & eieren">Zuivel & eieren</option>
+              <option value="Vlees & vis">Vlees & vis</option>
+              <option value="Brood & granen">Brood & granen</option>
+              <option value="Blik & pot">Blik & pot</option>
+              <option value="Kruiden & sauzen">Kruiden & sauzen</option>
+              <option value="Dranken">Dranken</option>
+              <option value="Overig" selected>Overig</option>
+            </select>
+          </label>
+
           <button class="button button-primary" type="submit">+ Toevoegen</button>
         </form>
 
@@ -241,6 +255,30 @@
       <footer class="app-footer">Samen aan tafel <span>·</span> Kleine stapjes, lekkere maaltijden.</footer>
     </section>
   </main>
+  <button id="open-recipe-assistant" class="recipe-assistant-fab hidden" type="button" aria-label="Vraag om een recept met geselecteerde producten">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+    <span>Maak een recept</span>
+    <span id="selected-inventory-count" class="recipe-assistant-count">0</span>
+  </button>
+  <div id="recipe-assistant" class="recipe-assistant-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="recipe-assistant-title">
+    <section class="recipe-assistant-panel">
+      <header class="recipe-assistant-header">
+        <div>
+          <p class="eyebrow">RECEPTENHULP</p>
+          <h2 id="recipe-assistant-title">Wat zullen we koken?</h2>
+        </div>
+        <button id="close-recipe-assistant" class="recipe-assistant-close" type="button" aria-label="Sluit receptenhulp">×</button>
+      </header>
+      <p class="recipe-assistant-demo">De AI maakt één receptidee. Controleer zelf de hoeveelheden en eventuele allergenen.</p>
+      <p class="recipe-assistant-label">Geselecteerde producten</p>
+      <p id="recipe-assistant-selected" class="recipe-assistant-selected"></p>
+      <p id="recipe-assistant-status" class="recipe-assistant-status" role="status" aria-live="polite"></p>
+      <div id="recipe-assistant-suggestions" class="recipe-assistant-suggestions"></div>
+    </section>
+  </div>
   <div id="toast" class="toast" role="status"></div>
   <script type="module" src="app.js"></script>
 </body>

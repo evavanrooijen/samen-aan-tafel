@@ -1,0 +1,80 @@
+const { GoogleGenAI } = require("@google/genai");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { logger } = require("firebase-functions");
+const { HttpsError, onCall } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const { createRecipePrompt, parseRecipe, validateIngredients } = require("./recipe");
+
+initializeApp();
+
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const recipeSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string", description: "Een korte Nederlandse receptnaam." },
+    ingredients: {
+      type: "array",
+      items: { type: "string" },
+      description: "Ingrediënten met hoeveelheden en eenheden."
+    },
+    method: { type: "string", description: "Een korte bereidingswijze in het Nederlands." },
+    servings: { type: "integer", description: "Het aantal porties." }
+  },
+  required: ["name", "ingredients", "method", "servings"]
+};
+
+exports.generateRecipe = onCall({
+  region: "europe-west1",
+  secrets: [geminiApiKey],
+  timeoutSeconds: 60,
+  maxInstances: 3
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Log in om een receptvoorstel te laten maken.");
+  }
+
+  let ingredients;
+  try {
+    ingredients = validateIngredients(request.data?.ingredients);
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error.message);
+  }
+
+  const profile = await getFirestore().collection("users").doc(request.auth.uid).get();
+  if (!profile.exists || typeof profile.get("householdId") !== "string" || !profile.get("householdId").trim()) {
+    throw new HttpsError("permission-denied", "Je account is niet gekoppeld aan een huishouden.");
+  }
+
+  let response;
+  try {
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    response = await ai.interactions.create({
+      model: "gemini-3.8-flash",
+      input: createRecipePrompt(ingredients),
+      response_format: {
+        type: "text",
+        mime_type: "application/json",
+        schema: recipeSchema
+      },
+      generation_config: {
+        max_output_tokens: 1000,
+        temperature: 0.5
+      }
+    });
+  } catch (error) {
+    logger.error("Gemini recipe request failed", {
+      name: error?.name || "UnknownError",
+      status: error?.status || "unknown"
+    });
+    throw new HttpsError("unavailable", "De AI is tijdelijk niet bereikbaar. Probeer het opnieuw.");
+  }
+
+  try {
+    const recipe = parseRecipe(response.output_text);
+    return { recipe };
+  } catch (error) {
+    logger.error("Gemini returned an invalid recipe response", { message: error.message });
+    throw new HttpsError("internal", "De AI gaf geen bruikbaar recept terug. Probeer het opnieuw.");
+  }
+});

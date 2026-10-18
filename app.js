@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAn8lVMwlR7jYIS33ab6dPBCXliMEzVWMo",
@@ -15,12 +16,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const functions = getFunctions(app, "europe-west1");
+const generateRecipe = httpsCallable(functions, "generateRecipe");
 
 const $ = (id) => document.getElementById(id);
 let currentUser = null;
 let householdId = null;
 let isRegisterMode = false;
 let inventory = [];
+const selectedInventoryIds = new Set();
 let recipes = [];
 let editingRecipeId = null;
 let shopping = [];
@@ -37,6 +41,9 @@ const dateNow = new Date();
 const todayKey = `${dateNow.getFullYear()}-${String(dateNow.getMonth()+1).padStart(2,"0")}-${String(dateNow.getDate()).padStart(2,"0")}`;
 let selectedPlanDateKey = todayKey;
 let calendarMonth = new Date(dateNow.getFullYear(), dateNow.getMonth(), 1);
+const inventoryCategories = ["Groente & fruit", "Zuivel & eieren", "Vlees & vis", "Brood & granen", "Blik & pot", "Kruiden & sauzen", "Dranken", "Overig"];
+let pendingRecipeMethod = null;
+let currentRecipeSuggestion = null;
 
 function showToast(message) {
   $("toast").textContent = message;
@@ -203,6 +210,9 @@ onAuthStateChanged(auth, async user => {
     householdId = null;
     isEditingTodayMeal = false;
     selectedPlanDateKey = todayKey;
+    selectedInventoryIds.clear();
+    pendingRecipeMethod = null;
+    updateRecipeAssistantButton();
     updatePlanDateDisplay();
     $("auth-view").classList.remove("hidden");
     $("app-view").classList.add("hidden");
@@ -248,26 +258,120 @@ function renderAll() {
 }
 
 function renderInventory() {
-  $("inventory-list").innerHTML = inventory.map(item => `
-    <div class="item-row">
-      <div class="item-main">
-        <div class="item-name">${escapeHtml(item.name)}</div>
-      </div>
-      <div class="item-amount">
-        <input id="inventory-quantity-${item.id}" class="inventory-quantity" type="number" min="0" step="any" value="${escapeHtml(String(item.quantity))}" data-action="update-inventory-quantity" data-id="${item.id}" aria-label="Hoeveelheid voor ${escapeHtml(item.name)}">
-        <span>${escapeHtml(item.unitOfMeasurement)}</span>
-      </div>
-      <button class="small-button inventory-action-button" type="button" data-action="edit-inventory" data-id="${item.id}" aria-label="Wijzig ${escapeHtml(item.name)}" title="Wijzig ${escapeHtml(item.name)}">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 4 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></svg>
-      </button>
-      <button class="small-button delete-button inventory-action-button" type="button" data-action="delete-inventory" data-id="${item.id}" aria-label="Verwijder ${escapeHtml(item.name)}" title="Verwijder ${escapeHtml(item.name)}">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-.9 14H5.9L5 6m4 4v6m6-6v6" /></svg>
-      </button>
-    </div>
-  `).join("");
+  const inventoryIds = new Set(inventory.map(item => item.id));
+  selectedInventoryIds.forEach(id => {
+    if (!inventoryIds.has(id)) selectedInventoryIds.delete(id);
+  });
+
+  $("inventory-list").innerHTML = inventoryCategories.map(category => {
+    const items = inventory.filter(item => inventoryCategories.includes(item.category) ? item.category === category : category === "Overig");
+    if (!items.length) return "";
+
+    return `<section class="inventory-category">
+      <h3>${escapeHtml(category)} <span>${items.length}</span></h3>
+      <div class="item-list">${items.map(item => {
+        const itemCategory = inventoryCategories.includes(item.category) ? item.category : "Overig";
+        return `
+          <div class="item-row">
+            <input class="inventory-select-checkbox" type="checkbox" data-action="select-inventory-item" data-id="${item.id}" ${selectedInventoryIds.has(item.id) ? "checked" : ""} aria-label="Selecteer ${escapeHtml(item.name)} voor een recept">
+            <div class="item-main">
+              <div class="item-name">${escapeHtml(item.name)}</div>
+              <select class="inventory-category-select" data-action="update-inventory-category" data-id="${item.id}" aria-label="Categorie voor ${escapeHtml(item.name)}">
+                ${inventoryCategories.map(option => `<option value="${escapeHtml(option)}"${option === itemCategory ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="item-amount">
+              <input id="inventory-quantity-${item.id}" class="inventory-quantity" type="number" min="0" step="any" value="${escapeHtml(String(item.quantity))}" data-action="update-inventory-quantity" data-id="${item.id}" aria-label="Hoeveelheid voor ${escapeHtml(item.name)}">
+              <span>${escapeHtml(item.unitOfMeasurement)}</span>
+            </div>
+            <button class="small-button inventory-action-button" type="button" data-action="edit-inventory" data-id="${item.id}" aria-label="Wijzig ${escapeHtml(item.name)}" title="Wijzig ${escapeHtml(item.name)}">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 4 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></svg>
+            </button>
+            <button class="small-button delete-button inventory-action-button" type="button" data-action="delete-inventory" data-id="${item.id}" aria-label="Verwijder ${escapeHtml(item.name)}" title="Verwijder ${escapeHtml(item.name)}">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-.9 14H5.9L5 6m4 4v6m6-6v6" /></svg>
+            </button>
+          </div>`;
+      }).join("")}</div>
+    </section>`;
+  }).join("");
   $("inventory-empty").classList.toggle("hidden", inventory.length > 0);
+  updateRecipeAssistantButton();
 }
 
+function updateRecipeAssistantButton() {
+  $("open-recipe-assistant").classList.toggle("hidden", selectedInventoryIds.size === 0);
+  $("selected-inventory-count").textContent = String(selectedInventoryIds.size);
+}
+
+function renderRecipeSuggestion() {
+  const suggestion = currentRecipeSuggestion;
+  $("recipe-assistant-suggestions").innerHTML = suggestion ? `
+    <article class="assistant-recipe-card">
+      <h3>${escapeHtml(suggestion.name)}</h3>
+      <p>${suggestion.servings} porties</p>
+      <h4>Ingrediënten</h4>
+      <ul>${suggestion.ingredients.map(ingredient => `<li>${escapeHtml(ingredient)}</li>`).join("")}</ul>
+      <details>
+        <summary>Bekijk bereiding</summary>
+        <p>${escapeHtml(suggestion.method).replace(/\n/g, "<br>")}</p>
+      </details>
+      <button class="button button-primary" type="button" data-action="choose-inventory-recipe">Plan voor ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}</button>
+    </article>` : "";
+}
+
+function recipeAssistantErrorMessage(error) {
+  if (error.code === "functions/unauthenticated") return "Log in om een receptvoorstel te laten maken.";
+  if (error.code === "functions/permission-denied") return "Je account is niet gekoppeld aan een huishouden.";
+  if (error.code === "functions/resource-exhausted") return "Er zijn net veel recepten aangevraagd. Probeer het straks opnieuw.";
+  if (error.code === "functions/not-found") return "De receptfunctie is nog niet uitgerold.";
+  if (error.code === "functions/unavailable" || error.code === "functions/deadline-exceeded") return "De AI is tijdelijk niet bereikbaar. Probeer het opnieuw.";
+  return "Het receptvoorstel kon niet worden gemaakt. Probeer het opnieuw.";
+}
+
+async function openRecipeAssistant() {
+  const selectedItems = inventory.filter(item => selectedInventoryIds.has(item.id));
+  if (!selectedItems.length) return;
+
+  const button = $("open-recipe-assistant");
+  button.disabled = true;
+  currentRecipeSuggestion = null;
+  $("recipe-assistant-selected").textContent = selectedItems.map(item => item.name).join(", ");
+  $("recipe-assistant-status").textContent = "Ik bedenk een recept met jullie ingrediënten…";
+  $("recipe-assistant-suggestions").innerHTML = "";
+  $("recipe-assistant").classList.remove("hidden");
+  $("close-recipe-assistant").focus();
+
+  try {
+    const result = await generateRecipe({
+      ingredients: selectedItems.map(item => ({
+        name: item.name,
+        quantity: Number(item.quantity),
+        unit: item.unitOfMeasurement
+      }))
+    });
+    currentRecipeSuggestion = result.data.recipe;
+    $("recipe-assistant-status").textContent = "";
+    renderRecipeSuggestion();
+  } catch (error) {
+    $("recipe-assistant-status").textContent = recipeAssistantErrorMessage(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function closeRecipeAssistant() {
+  $("recipe-assistant").classList.add("hidden");
+  $("open-recipe-assistant").focus();
+}
+
+$("open-recipe-assistant").addEventListener("click", openRecipeAssistant);
+$("close-recipe-assistant").addEventListener("click", closeRecipeAssistant);
+$("recipe-assistant").addEventListener("click", event => {
+  if (event.target === $("recipe-assistant")) closeRecipeAssistant();
+});
+$("recipe-assistant").addEventListener("keydown", event => {
+  if (event.key === "Escape") closeRecipeAssistant();
+});
 function renderRecipes() {
   $("recipes-list").innerHTML = recipes.map(recipe => {
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
@@ -349,7 +453,9 @@ function renderToday() {
     if (hasSavedMeal) {
       const ingredients = Array.isArray(todayData.ingredients) ? todayData.ingredients : [];
       const plannedRecipe = findPlannedRecipe();
-      const method = typeof plannedRecipe?.method === "string" ? plannedRecipe.method.trim() : "";
+      const method = typeof todayData.method === "string" && todayData.method.trim()
+        ? todayData.method.trim()
+        : typeof plannedRecipe?.method === "string" ? plannedRecipe.method.trim() : "";
       summary.innerHTML = `<h3>${escapeHtml(plannedMealName)}</h3>
         <h4>Ingrediënten</h4>
         ${ingredients.length ? `<ul>${ingredients.map((item, index) => {
@@ -428,8 +534,9 @@ $("inventory-form").addEventListener("submit", async event => {
   const name = $("item-name").value.trim();
   const quantity = Number($("item-quantity").value);
   const unitOfMeasurement = $("item-unit").value;
+  const category = $("item-category").value;
   try {
-    await addDoc(householdCollection("inventory"), { name, quantity, unitOfMeasurement, createdAt: serverTimestamp() });
+    await addDoc(householdCollection("inventory"), { name, quantity, unitOfMeasurement, category, createdAt: serverTimestamp() });
     event.target.reset();
     $("inventory-form").classList.add("hidden");
     showToast("Toegevoegd aan voorraad.");
@@ -483,6 +590,13 @@ document.body.addEventListener("change", async event => {
   if (event.target.id === "hide-checked-shopping") {
     hideCheckedShopping = event.target.checked;
     renderShopping();
+    return;
+  }
+
+  if (event.target.matches("[data-action='select-inventory-item']")) {
+    if (event.target.checked) selectedInventoryIds.add(event.target.dataset.id);
+    else selectedInventoryIds.delete(event.target.dataset.id);
+    updateRecipeAssistantButton();
     return;
   }
 
@@ -550,11 +664,30 @@ document.body.addEventListener("change", async event => {
           name: item.name,
           quantity: Number(item.quantity) || 1,
           unitOfMeasurement: item.unitOfMeasurement || "st",
+          category: "Overig",
           createdAt: serverTimestamp()
         });
         showToast(`"${item.name}" afgetakt en toegevoegd aan voorraad!`);
       }
     } catch(error) { showToast(friendlyError(error)); }
+  }
+
+  if (event.target.matches("[data-action='update-inventory-category']") && householdId) {
+    const item = inventory.find(entry => entry.id === event.target.dataset.id);
+    const category = event.target.value;
+    if (!item || !inventoryCategories.includes(category)) {
+      event.target.value = inventoryCategories.includes(item?.category) ? item.category : "Overig";
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "households", householdId, "inventory", item.id), { category });
+      showToast(`"${item.name}" verplaatst naar ${category}.`);
+    } catch (error) {
+      event.target.value = inventoryCategories.includes(item.category) ? item.category : "Overig";
+      showToast(friendlyError(error));
+    }
+    return;
   }
 });
 
@@ -617,7 +750,13 @@ document.body.addEventListener("click", async event => {
       if (!name) { showToast("Geef de maaltijd eerst een naam."); return; }
       if (!ingredients.length) { showToast("Vul eerst de ingrediënten in."); return; }
 
-      await setDoc(doc(db, "households", householdId, "dayPlans", selectedPlanDateKey), { name, ingredients, updatedAt: serverTimestamp() });
+      const method = pendingRecipeMethod;
+      await setDoc(doc(db, "households", householdId, "dayPlans", selectedPlanDateKey), {
+        name,
+        ingredients,
+        ...(method ? { method } : {}),
+        updatedAt: serverTimestamp()
+      });
 
       const normalize = v => String(v).toLocaleLowerCase("nl-NL").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const missing = ingredients.filter(ingredient => {
@@ -640,7 +779,8 @@ document.body.addEventListener("click", async event => {
           createdAt: serverTimestamp()
         });
       }
-      todayData = { ...todayData, name, ingredients };
+      todayData = { ...todayData, name, ingredients, method: method || "" };
+      pendingRecipeMethod = null;
       isEditingTodayMeal = false;
       renderToday();
       renderTodayRecipeSelect();
@@ -653,6 +793,24 @@ document.body.addEventListener("click", async event => {
       showToast(isEditing
         ? `Maaltijd bijgewerkt! ${missing.length} nieuwe ingrediënt(en) op de boodschappenlijst gezet.`
         : `Menu opgeslagen! ${missing.length} ontbrekende ingrediënt(en) op de boodschappenlijst gezet.`);
+      return;
+    }
+
+    if (action === "choose-inventory-recipe") {
+      const suggestion = currentRecipeSuggestion;
+      if (!suggestion) return;
+      if (todayData.name && !confirm(`Dit vervangt "${todayData.name}" op ${dateFromKey(selectedPlanDateKey).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}. Wil je doorgaan?`)) return;
+
+      $("today-meal-name").value = suggestion.name;
+      $("today-meal-ingredients").value = suggestion.ingredients.join("\n");
+      pendingRecipeMethod = suggestion.method;
+      closeRecipeAssistant();
+      document.querySelector(".tab[data-tab='today']")?.click();
+      document.querySelector("[data-action='save-and-shopping']")?.click();
+      selectedInventoryIds.clear();
+      updateRecipeAssistantButton();
+      renderInventory();
+      document.querySelector(".tab[data-tab='today']")?.focus();
       return;
     }
 

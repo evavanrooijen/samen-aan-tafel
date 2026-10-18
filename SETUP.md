@@ -45,7 +45,7 @@ Voor deze eerste versie gebeurt dit bewust handmatig in de Firebase Console. Zo 
 
 ## Stap 6 — GitHub Pages
 1. Maak op GitHub een nieuwe repository, bijvoorbeeld `samen-aan-tafel`.
-2. Upload `index.html`, `style.css`, `app.js`, `firestore.rules` en deze `SETUP.md` naar de hoofdmap (`root`) van de repository.
+2. Upload `index.html`, `style.css`, `app.js`, `firestore.rules`, `firebase.json`, de map `functions/` (inclusief `package.json` en `package-lock.json`) en deze `SETUP.md` naar de hoofdmap (`root`) van de repository.
 3. Open GitHub: Settings → Pages.
 4. Kies bij Build and deployment: **Deploy from a branch**.
 5. Selecteer branch `main` en map `/(root)`, klik Save.
@@ -59,6 +59,34 @@ Voor deze eerste versie gebeurt dit bewust handmatig in de Firebase Console. Zo 
 - Controleer of dezelfde gegevens zichtbaar zijn en of wijzigingen in beide vensters verschijnen.
 - Probeer niet-ingelogd de Firestore-gegevens op te vragen; de regels horen toegang te weigeren.
 
+## Stap 8 — Echte AI-recepten inschakelen
+De receptenhulp gebruikt een beveiligde Firebase Cloud Function. De Gemini API-key wordt alleen door de functie gebruikt en staat niet in de browsercode.
+
+1. Activeer het **Blaze-abonnement** voor het Firebase-project. Cloud Functions en Secret Manager vereisen een Cloud Billing-account; stel desgewenst ook een budgetmelding in.
+2. Maak een Gemini API-key aan via [Google AI Studio](https://aistudio.google.com/apikey). Deel deze sleutel niet en zet hem niet in `app.js` of in Git.
+3. Installeer de Firebase CLI en log in:
+   ```sh
+   npm install -g firebase-tools
+   firebase login
+   ```
+   Gebruik in Windows PowerShell zo nodig `npm.cmd` en `firebase.cmd` in plaats van `npm` en `firebase`.
+4. Ga in een terminal naar de projectmap en selecteer het Firebase-project dat bij `firebaseConfig.projectId` in `app.js` hoort:
+   ```sh
+   firebase use kielastraat-27
+   ```
+   Vervang `kielastraat-27` als je in `app.js` een ander project-ID gebruikt.
+5. Sla de Gemini-key op als Firebase Secret. De CLI vraagt de waarde veilig in:
+   ```sh
+   firebase functions:secrets:set GEMINI_API_KEY
+   ```
+6. Deploy de functie:
+   ```sh
+   firebase deploy --only functions
+   ```
+7. Publiceer daarna de bijgewerkte `app.js`, `index.html` en `style.css` naar GitHub Pages.
+
+De functie controleert Firebase Authentication en het huishoudprofiel, beperkt de invoer en vraagt Gemini om één recept in een vast formaat. Het geselecteerde recept gebruikt daarna de bestaande planning en zet ontbrekende ingrediënten op de boodschappenlijst. De Gemini API kan kosten of limieten hebben; controleer het gebruik en de facturering in Google AI Studio en Google Cloud.
+
 ## Lokaal testen
 Omdat `app.js` ES modules importeert, open `index.html` niet rechtstreeks met `file://`.
 Start een lokale webserver vanuit de projectmap, bijvoorbeeld met Python:
@@ -67,6 +95,7 @@ Open daarna `http://localhost:8000`.
 
 ## Belangrijke notities
 - De Firebase web-config bevat een API-key die in client-apps zichtbaar is; dat is normaal. Beveiliging komt uit Firebase Security Rules en de instellingen van het project. Deel nooit een service-account-key of Admin SDK credentials in de frontend.
+- De Gemini API-key hoort uitsluitend in Firebase Secret Manager (`GEMINI_API_KEY`), nooit in de frontend of in een bestand dat je commit.
 - Zet geen open Firestore-regels online. De regels hierboven geven alleen toegang aan accounts waarvan het `users/{uid}`-profiel naar de betreffende `householdId` verwijst.
 - De eerste versie heeft geen wachtwoordreset, uitnodigingsflow, voorraadhoeveelheden als getal, automatische ingrediënten-naar-boodschappenlogica of offline-modus.
 - De huidige weekplanner gebruikt de maandag van de huidige week als week-ID; hij toont geen weeknavigatie.
